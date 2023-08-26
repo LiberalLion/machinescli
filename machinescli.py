@@ -274,12 +274,13 @@ class MachinesCLI:
       if not entry.get("videoId", None):
         continue
       name = utils.strip_html(entry["machine"])
-      video_url = "https://www.youtube.com/watch?v=%s&t=0" % (entry["videoId"])
-      hours = int(entry["timestamp"]["minutes"] // 60); minutes = entry["timestamp"]["minutes"] - (hours*60)
+      video_url = f'https://www.youtube.com/watch?v={entry["videoId"]}&t=0'
+      hours = int(entry["timestamp"]["minutes"] // 60)
+      minutes = entry["timestamp"]["minutes"] - (hours*60)
       timestamp = "%02d:%02d:%02d" % (hours, minutes, entry["timestamp"]["seconds"])
       totalseconds = (entry["timestamp"]["minutes"]*60) + entry["timestamp"]["seconds"]
       tsurl = "https://www.youtube.com/watch?v=%s&t=%ds" % (entry["videoId"], totalseconds)
-      desc = "%s - %s" % (timestamp, utils.strip_html(entry["line"]))
+      desc = f'{timestamp} - {utils.strip_html(entry["line"])}'
       if name not in self.ipsc["entries"]:
         self.ipsc["count"] += 1
         self.ipsc["entries"][name] = {
@@ -317,7 +318,7 @@ class MachinesCLI:
             token = token.lower().replace(" [linux]", "").replace(" [windows]", "").strip()
             token = self.corrections[token] if token in self.corrections else token
             # token is a name, find url from self.stats
-            query = '.machines[] | select(.infrastructure == "hackthebox" and .shortname == "%s") | .url' % (token)
+            query = f'.machines[] | select(.infrastructure == "hackthebox" and .shortname == "{token}") | .url'
             result = self._json_query(query)
             if result and len(result):
               htboscplike.append(result[0])
@@ -330,17 +331,17 @@ class MachinesCLI:
         celldata = line.replace('",', '"___')
         for entry in celldata.split("___"):
           if not entry: continue
-          match = re.search(r'vulnhub\.com/entry/(.+),(\d+)', entry)
-          if match:
-            name, mid, url = match.groups()[0], int(match.groups()[1]), "https://www.vulnhub.com/entry/%s,%s/" % (match.groups()[0], match.groups()[1])
+          if match := re.search(r'vulnhub\.com/entry/(.+),(\d+)', entry):
+            name, mid, url = (
+                match.groups()[0],
+                int(match.groups()[1]),
+                f"https://www.vulnhub.com/entry/{match.groups()[0]},{match.groups()[1]}/",
+            )
             vhoscplike.append(token)
       self.oscplikelist += vhoscplike
       self._save_oscplike()
     for machine in self.stats["machines"]:
-      if machine["url"] in self.oscplikelist:
-        machine["oscplike"] = True
-      else:
-        machine["oscplike"] = False
+      machine["oscplike"] = machine["url"] in self.oscplikelist
     self._save_stats()
     utils.info("[update.oscplike] added %d oscplike machines from various sources" % (len(self.oscplikelist)))
 
@@ -361,10 +362,10 @@ class MachinesCLI:
     difficulty = self.htbapi.machines_difficulty()
     machines = self.htbapi.machines_startingpoint_all()
     machines += self.htbapi.machines_get_all()
-    htbmachines = {}
-    for machine in machines:
-      url = "https://app.hackthebox.eu/machines/%d" % (machine["id"])
-      htbmachines[url] = machine
+    htbmachines = {
+        "https://app.hackthebox.eu/machines/%d" % (machine["id"]): machine
+        for machine in machines
+    }
     trackedhtb = self._json_query('.machines[] | select(.infrastructure == "hackthebox") | .url')
     totalhtb = htbmachines.keys()
     deltahtb = list(set(totalhtb) - set(trackedhtb))
@@ -397,9 +398,7 @@ class MachinesCLI:
 
   def _update_vulnhub(self):
     urls = self.vhapi._get_all_machine_urls()
-    vhmachines = {}
-    for url in urls:
-      vhmachines[url] = None
+    vhmachines = {url: None for url in urls}
     trackedvh = self._json_query('.machines[] | select(.infrastructure == "vulnhub") | .url')
     totalvh = vhmachines.keys()
     deltavh = list(set(totalvh) - set(trackedvh))
@@ -426,45 +425,60 @@ class MachinesCLI:
     rooms = self.thmapi.rooms()["rooms"]
     thmrooms = {}
     for room in rooms:
-      url = "https://tryhackme.com/room/%s" % (room["code"])
+      url = f'https://tryhackme.com/room/{room["code"]}'
       thmrooms[url] = room
     trackedthm = self._json_query('.machines[] | select(.infrastructure == "tryhackme") | .url')
     totalthm = thmrooms.keys()
     deltathm = list(set(totalthm) - set(trackedthm))
     utils.info("[update.tryhackme] tracked: %d, total: %d, delta: %d" % (len(trackedthm), len(totalthm), len(deltathm)))
     if len(deltathm):
-      d2p = dict((v,k) for k,v in self.points2difficulty.items())
+      d2p = {v: k for k,v in self.points2difficulty.items()}
       total = len(deltathm)
       for idx, deltaurl in enumerate(deltathm):
         print("[update.tryhackme][%d/%d] adding stats for %s" % (idx+1, total, deltaurl))
         matchdict = {
-          "description": thmrooms[deltaurl]["description"],
-          "difficulty": thmrooms[deltaurl]["difficulty"],
-          "difficulty_ratings": None,
-          "id": "tryhackme#%s" % (thmrooms[deltaurl]["code"]),
-          "infrastructure": "tryhackme",
-          "maker": {
-            "id": None,
-            "name": thmrooms[deltaurl]["creator"],
-            "url": None,
-          },
-          "name": thmrooms[deltaurl]["title"],
-          "os": None,
-          "oscplike": None,
-          "owned_root": False,
-          "owned_user": False,
-          "points": d2p[thmrooms[deltaurl]["difficulty"]],
-          "release": thmrooms[deltaurl]["published"] if "published" in thmrooms[deltaurl] else thmrooms[deltaurl]["created"],
-          "series": {
-            "id": None,
-            "name": None,
-            "url": None,
-          },
-          "shortname": thmrooms[deltaurl]["code"],
-          "url": deltaurl,
-          "verbose_id": "tryhackme#%s" % (thmrooms[deltaurl]["code"]),
+            "description":
+            thmrooms[deltaurl]["description"],
+            "difficulty":
+            thmrooms[deltaurl]["difficulty"],
+            "id":
+            f'tryhackme#{thmrooms[deltaurl]["code"]}',
+            "infrastructure":
+            "tryhackme",
+            "maker": {
+                "id": None,
+                "name": thmrooms[deltaurl]["creator"],
+                "url": None,
+            },
+            "name":
+            thmrooms[deltaurl]["title"],
+            "os":
+            None,
+            "oscplike":
+            None,
+            "owned_root":
+            False,
+            "owned_user":
+            False,
+            "points":
+            d2p[thmrooms[deltaurl]["difficulty"]],
+            "release":
+            thmrooms[deltaurl]["published"] if "published" in thmrooms[deltaurl]
+            else thmrooms[deltaurl]["created"],
+            "series": {
+                "id": None,
+                "name": None,
+                "url": None
+            },
+            "shortname":
+            thmrooms[deltaurl]["code"],
+            "url":
+            deltaurl,
+            "verbose_id":
+            f'tryhackme#{thmrooms[deltaurl]["code"]}',
+            "difficulty_ratings":
+            None,
         }
-        matchdict["difficulty_ratings"] = None
         self.stats["machines"].append(matchdict)
       utils.info("[update.tryhackme] added %d new machines (total: %d)" % (len(deltathm), len(self._json_query('.machines[] | select(.infrastructure == "tryhackme") | .url'))))
 
@@ -490,38 +504,46 @@ class MachinesCLI:
       utils.to_json(self.stats["counts"])
     else:
       header, rows = ["#", "Total", "TryHackMe", "HackTheBox", "VulnHub", "OSCPlike"], []
-      rows.append("___".join([x for x in [
-        "%s" % (utils.green("Total")),
-        "%s/%s (%s)" % (utils.green(self.stats["counts"]["ownedtotal"]), utils.green(self.stats["counts"]["totaltotal"]), utils.green("%.2f%%" % (self.stats["counts"]["pertotal"]))),
-        "%s/%s (%s)" % (utils.green(self.stats["counts"]["ownedthm"]), utils.green(self.stats["counts"]["totalthm"]), utils.green("%.2f%%" % (self.stats["counts"]["perthm"]))),
-        "%s/%s (%s)" % (utils.green(self.stats["counts"]["ownedhtb"]), utils.green(self.stats["counts"]["totalhtb"]), utils.green("%.2f%%" % (self.stats["counts"]["perhtb"]))),
-        "%s/%s (%s)" % (utils.green(self.stats["counts"]["ownedvh"]), utils.green(self.stats["counts"]["totalvh"]), utils.green("%.2f%%" % (self.stats["counts"]["pervh"]))),
-        "%s/%s (%s)" % (utils.red(self.stats["counts"]["ownedoscplike"]), utils.red(self.stats["counts"]["totaloscplike"]), utils.red("%.2f%%" % (self.stats["counts"]["peroscplike"]))),
-      ]]))
-      rows.append("___".join([str(x) for x in [
-        utils.yellow("Windows"),
-        "%s/%s (%s)" % (utils.yellow(self.stats["counts"]["ownedwindows"]), utils.yellow(self.stats["counts"]["totalwindows"]), utils.yellow("%.2f%%" % (self.stats["counts"]["perwindows"]))),
-        "%s/%s (%s)" % (utils.yellow(self.stats["counts"]["ownedthmwindows"]), utils.yellow(self.stats["counts"]["thmwindows"]), utils.yellow("%.2f%%" % (self.stats["counts"]["perthmwindows"]))),
-        "%s/%s (%s)" % (utils.yellow(self.stats["counts"]["ownedhtbwindows"]), utils.yellow(self.stats["counts"]["htbwindows"]), utils.yellow("%.2f%%" % (self.stats["counts"]["perhtbwindows"]))),
-        "%s/%s (%s)" % (utils.yellow(self.stats["counts"]["ownedvhwindows"]), utils.yellow(self.stats["counts"]["vhwindows"]), utils.yellow("%.2f%%" % (self.stats["counts"]["pervhwindows"]))),
-        "%s/%s (%s)" % (utils.yellow(self.stats["counts"]["ownedoscplikewindows"]), utils.yellow(self.stats["counts"]["oscplikewindows"]), utils.yellow("%.2f%%" % (self.stats["counts"]["peroscplikewindows"]))),
-      ]]))
-      rows.append("___".join([str(x) for x in [
-        utils.magenta("*nix"),
-        "%s/%s (%s)" % (utils.magenta(self.stats["counts"]["ownednix"]), utils.magenta(self.stats["counts"]["totalnix"]), utils.magenta("%.2f%%" % (self.stats["counts"]["pernix"]))),
-        "%s/%s (%s)" % (utils.magenta(self.stats["counts"]["ownedthmnix"]), utils.magenta(self.stats["counts"]["thmnix"]), utils.magenta("%.2f%%" % (self.stats["counts"]["perthmnix"]))),
-        "%s/%s (%s)" % (utils.magenta(self.stats["counts"]["ownedhtbnix"]), utils.magenta(self.stats["counts"]["htbnix"]), utils.magenta("%.2f%%" % (self.stats["counts"]["perhtbnix"]))),
-        "%s/%s (%s)" % (utils.magenta(self.stats["counts"]["ownedvhnix"]), utils.magenta(self.stats["counts"]["vhnix"]), utils.magenta("%.2f%%" % (self.stats["counts"]["pervhnix"]))),
-        "%s/%s (%s)" % (utils.magenta(self.stats["counts"]["ownedoscplikenix"]), utils.magenta(self.stats["counts"]["oscplikenix"]), utils.magenta("%.2f%%" % (self.stats["counts"]["peroscplikenix"]))),
-      ]]))
-      rows.append("___".join([str(x) for x in [
-        utils.red("OSCPlike"),
-        "%s/%s (%s)" % (utils.red(self.stats["counts"]["ownedoscplike"]), utils.red(self.stats["counts"]["totaloscplike"]), utils.red("%.2f%%" % (self.stats["counts"]["peroscplike"]))),
-        "%s/%s (%s)" % (utils.red(self.stats["counts"]["ownedthmoscplike"]), utils.red(self.stats["counts"]["thmoscplike"]), utils.red("%.2f%%" % (self.stats["counts"]["perthmoscplike"]))),
-        "%s/%s (%s)" % (utils.red(self.stats["counts"]["ownedhtboscplike"]), utils.red(self.stats["counts"]["htboscplike"]), utils.red("%.2f%%" % (self.stats["counts"]["perhtboscplike"]))),
-        "%s/%s (%s)" % (utils.red(self.stats["counts"]["ownedvhoscplike"]), utils.red(self.stats["counts"]["vhoscplike"]), utils.red("%.2f%%" % (self.stats["counts"]["pervhoscplike"]))),
-        utils.red(""),
-      ]]))
+      rows.extend((
+          "___".join([
+              f'{utils.green("Total")}',
+              f'{utils.green(self.stats["counts"]["ownedtotal"])}/{utils.green(self.stats["counts"]["totaltotal"])} ({utils.green("%.2f%%" % self.stats["counts"]["pertotal"])})',
+              f'{utils.green(self.stats["counts"]["ownedthm"])}/{utils.green(self.stats["counts"]["totalthm"])} ({utils.green("%.2f%%" % self.stats["counts"]["perthm"])})',
+              f'{utils.green(self.stats["counts"]["ownedhtb"])}/{utils.green(self.stats["counts"]["totalhtb"])} ({utils.green("%.2f%%" % self.stats["counts"]["perhtb"])})',
+              f'{utils.green(self.stats["counts"]["ownedvh"])}/{utils.green(self.stats["counts"]["totalvh"])} ({utils.green("%.2f%%" % self.stats["counts"]["pervh"])})',
+              f'{utils.red(self.stats["counts"]["ownedoscplike"])}/{utils.red(self.stats["counts"]["totaloscplike"])} ({utils.red("%.2f%%" % self.stats["counts"]["peroscplike"])})',
+          ]),
+          "___".join([
+              str(x) for x in [
+                  utils.yellow("Windows"),
+                  f'{utils.yellow(self.stats["counts"]["ownedwindows"])}/{utils.yellow(self.stats["counts"]["totalwindows"])} ({utils.yellow("%.2f%%" % self.stats["counts"]["perwindows"])})',
+                  f'{utils.yellow(self.stats["counts"]["ownedthmwindows"])}/{utils.yellow(self.stats["counts"]["thmwindows"])} ({utils.yellow("%.2f%%" % self.stats["counts"]["perthmwindows"])})',
+                  f'{utils.yellow(self.stats["counts"]["ownedhtbwindows"])}/{utils.yellow(self.stats["counts"]["htbwindows"])} ({utils.yellow("%.2f%%" % self.stats["counts"]["perhtbwindows"])})',
+                  f'{utils.yellow(self.stats["counts"]["ownedvhwindows"])}/{utils.yellow(self.stats["counts"]["vhwindows"])} ({utils.yellow("%.2f%%" % self.stats["counts"]["pervhwindows"])})',
+                  f'{utils.yellow(self.stats["counts"]["ownedoscplikewindows"])}/{utils.yellow(self.stats["counts"]["oscplikewindows"])} ({utils.yellow("%.2f%%" % self.stats["counts"]["peroscplikewindows"])})',
+              ]
+          ]),
+          "___".join([
+              str(x) for x in [
+                  utils.magenta("*nix"),
+                  f'{utils.magenta(self.stats["counts"]["ownednix"])}/{utils.magenta(self.stats["counts"]["totalnix"])} ({utils.magenta("%.2f%%" % self.stats["counts"]["pernix"])})',
+                  f'{utils.magenta(self.stats["counts"]["ownedthmnix"])}/{utils.magenta(self.stats["counts"]["thmnix"])} ({utils.magenta("%.2f%%" % self.stats["counts"]["perthmnix"])})',
+                  f'{utils.magenta(self.stats["counts"]["ownedhtbnix"])}/{utils.magenta(self.stats["counts"]["htbnix"])} ({utils.magenta("%.2f%%" % self.stats["counts"]["perhtbnix"])})',
+                  f'{utils.magenta(self.stats["counts"]["ownedvhnix"])}/{utils.magenta(self.stats["counts"]["vhnix"])} ({utils.magenta("%.2f%%" % self.stats["counts"]["pervhnix"])})',
+                  f'{utils.magenta(self.stats["counts"]["ownedoscplikenix"])}/{utils.magenta(self.stats["counts"]["oscplikenix"])} ({utils.magenta("%.2f%%" % self.stats["counts"]["peroscplikenix"])})',
+              ]
+          ]),
+          "___".join([
+              str(x) for x in [
+                  utils.red("OSCPlike"),
+                  f'{utils.red(self.stats["counts"]["ownedoscplike"])}/{utils.red(self.stats["counts"]["totaloscplike"])} ({utils.red("%.2f%%" % self.stats["counts"]["peroscplike"])})',
+                  f'{utils.red(self.stats["counts"]["ownedthmoscplike"])}/{utils.red(self.stats["counts"]["thmoscplike"])} ({utils.red("%.2f%%" % self.stats["counts"]["perthmoscplike"])})',
+                  f'{utils.red(self.stats["counts"]["ownedhtboscplike"])}/{utils.red(self.stats["counts"]["htboscplike"])} ({utils.red("%.2f%%" % self.stats["counts"]["perhtboscplike"])})',
+                  f'{utils.red(self.stats["counts"]["ownedvhoscplike"])}/{utils.red(self.stats["counts"]["vhoscplike"])} ({utils.red("%.2f%%" % self.stats["counts"]["pervhoscplike"])})',
+                  utils.red(""),
+              ]
+          ]),
+      ))
       aligndict = {
         "#": "r",
         "Total": "l",
@@ -654,7 +676,10 @@ class MachinesCLI:
 
 
 if __name__ == "__main__":
-  parser = argparse.ArgumentParser(description="%s (v%s): Command-line interface for %s, %s and %s machines." % (utils.blue_bold("machinescli"), utils.green_bold("0.1"), utils.magenta_bold("HackTheBox"), utils.cyan_bold("TryHackMe"), utils.yellow_bold("VulnHub")))
+  parser = argparse.ArgumentParser(
+      description=
+      f'{utils.blue_bold("machinescli")} (v{utils.green_bold("0.1")}): Command-line interface for {utils.magenta_bold("HackTheBox")}, {utils.cyan_bold("TryHackMe")} and {utils.yellow_bold("VulnHub")} machines.'
+  )
 
   # global flag to switch output mode; useful for debugging with jq
   ggroup = parser.add_mutually_exclusive_group()
@@ -666,7 +691,13 @@ if __name__ == "__main__":
 
   # update htb|vh|oscplike stats
   # will perform live api querying for htb, web crawls for vh and oscplike lists
-  mcgroup.add_argument('--update', required=False, action='store_true', default=False, help='update local stats file %s' % (utils.black_bold("(takes time)")))
+  mcgroup.add_argument(
+      '--update',
+      required=False,
+      action='store_true',
+      default=False,
+      help=f'update local stats file {utils.black_bold("(takes time)")}',
+  )
 
   # localized querying and listing of results from stats file (covers all supported platforms and lists (htb|vh and oscplike as of v0.1)
   # results could differ from htbgroup calls if local stats file has not been updated in a while

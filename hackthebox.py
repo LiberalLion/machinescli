@@ -42,21 +42,21 @@ class HackTheBox:
     self.version = "0.1"
     self.apikey = apikey
     self.baseurl = "https://www.hackthebox.eu/api"
-    self.useragent = "Python HTB Client/%s" % (self.version)
+    self.useragent = f"Python HTB Client/{self.version}"
     self.headers = { "User-Agent": self.useragent }
 
   def _get_http(self, endpoint, authorize=False):
     self.headers["Content-Type"] = "application/json;charset=utf-8"
     if authorize:
-      self.headers["Authorization"] = "Bearer %s" % (self.apikey)
-    url = "%s/%s" % (self.baseurl, endpoint)
+      self.headers["Authorization"] = f"Bearer {self.apikey}"
+    url = f"{self.baseurl}/{endpoint}"
     return utils.get_http(url, self.headers)
 
   def _post_http(self, endpoint, data, authorize=False):
     self.headers["Content-Type"] = "application/json;charset=utf-8"
     if authorize:
-      self.headers["Authorization"] = "Bearer %s" % (self.apikey)
-    url = "%s/%s" % (self.baseurl, endpoint)
+      self.headers["Authorization"] = f"Bearer {self.apikey}"
+    url = f"{self.baseurl}/{endpoint}"
     return utils.post_http(url, data, self.headers)
 
   def stats_overview(self):
@@ -118,7 +118,9 @@ class HackTheBox:
   def labs_switch(self, labname):
     # curl -s 'https://www.hackthebox.eu/api/labs/switch/usvip' -H 'Authorization: Bearer <apikey>' -H 'Content-Type: application/json;charset=utf-8' --data '' | jq .
     if labname.lower().strip() in ["eufree", "euvip", "euvipbeta", "usfree", "usvip"]:
-      return self._post_http(endpoint="/labs/switch/%s" % (labname), data={}, authorize=True)
+      return self._post_http(endpoint=f"/labs/switch/{labname}",
+                             data={},
+                             authorize=True)
 
   def users_htb_connection_status(self):
     # curl -s 'https://www.hackthebox.eu/api/users/htb/connection/status' -H 'Authorization: Bearer <apikey>' -H 'Content-Type: application/json;charset=utf-8' --data '' | jq .

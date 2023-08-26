@@ -9,7 +9,7 @@ class VulnHub:
   def __init__(self):
     self.version = "0.1"
     self.baseurl = "https://www.vulnhub.com/"
-    self.useragent = "Python VH Client/%s" % (self.version)
+    self.useragent = f"Python VH Client/{self.version}"
     self.headers = { "User-Agent": self.useragent }
 
     self.difficulty = {
@@ -264,11 +264,13 @@ class VulnHub:
   def _get_all_machine_urls(self):
     # from timeline url, get machine urls
     machineurls = []
-    res = utils.get_http_res("%s/timeline/" % self.baseurl)
+    res = utils.get_http_res(f"{self.baseurl}/timeline/")
     if res.status_code == 200 and res.text:
-      pages = re.findall(r'<a href="/entry/[^"]+', res.text)
-      if pages:
-        machineurls = ["%s%s" % (self.baseurl, x.split('"', 2)[1].replace("/entry/", "entry/")) for x in pages]
+      if pages := re.findall(r'<a href="/entry/[^"]+', res.text):
+        machineurls = [
+            f"""{self.baseurl}{x.split('"', 2)[1].replace("/entry/", "entry/")}"""
+            for x in pages
+        ]
 
     return machineurls
 
@@ -278,7 +280,11 @@ class VulnHub:
     match = re.search(r'/entry/(.+),(\d+)/', url)
     if not match:
       return
-    shortname, mid, url = match.groups()[0], int(match.groups()[1]), "https://www.vulnhub.com/entry/%s,%s/" % (match.groups()[0], match.groups()[1])
+    shortname, mid, url = (
+        match.groups()[0],
+        int(match.groups()[1]),
+        f"https://www.vulnhub.com/entry/{match.groups()[0]},{match.groups()[1]}/",
+    )
     machinestats = {
       "avatar_thumb": None,
       "id": mid,
@@ -317,7 +323,9 @@ class VulnHub:
 
     # <a href="/media/img/entry/
     match = re.search(r'<a href="/media/img/entry/([^"]+)', page, re.I)
-    machinestats["avatar_thumb"] = "https://www.vulnhub.com/media/img/entry/%s" % (utils.strip_html(match.groups()[0])) if match else None
+    machinestats["avatar_thumb"] = (
+        f"https://www.vulnhub.com/media/img/entry/{utils.strip_html(match.groups()[0])}"
+        if match else None)
 
     # <li><b>Date release</b>: 13 May 2020</li>
     match = re.search(r'<li><b>Date release</b>:\s*(.+)</li>', page, re.I)
@@ -328,14 +336,16 @@ class VulnHub:
     if match:
       machinestats["maker"]["name"] = utils.strip_html(match.groups()[2])
       machinestats["maker"]["id"] = int(utils.strip_html(match.groups()[1]))
-      machinestats["maker"]["url"] = "https://www.vulnhub.com/author/%s,%s/" % (utils.strip_html(match.groups()[0]), utils.strip_html(match.groups()[1]))
+      machinestats["maker"][
+          "url"] = f"https://www.vulnhub.com/author/{utils.strip_html(match.groups()[0])},{utils.strip_html(match.groups()[1])}/"
 
     # <li><b>Series</b>: <a href="/series/seppuku,318/">Seppuku</a></li>
     match = re.search(r'<li><b>Series</b>:\s*<a href="/series/(.+),(\d+)/">(.+)</a></li>', page, re.I)
     if match:
       machinestats["series"]["name"] = utils.strip_html(match.groups()[2])
       machinestats["series"]["id"] = int(utils.strip_html(match.groups()[1]))
-      machinestats["series"]["url"] = "https://www.vulnhub.com/series/%s,%s/" % (utils.strip_html(match.groups()[0]), utils.strip_html(match.groups()[1]))
+      machinestats["series"][
+          "url"] = f"https://www.vulnhub.com/series/{utils.strip_html(match.groups()[0])},{utils.strip_html(match.groups()[1])}/"
 
     # <li><b>Operating System</b>: Linux</li>
     match = re.search(r'<li><b>Operating System</b>:\s*(.+)</li>', page, re.I)
@@ -393,11 +403,11 @@ class VulnHub:
         "easy": ["easy", "beginner", "low"],
       }
 
-      newdiff = None
-      for normdiff in mapping["insane"]:
-        if normdiff in machinestats["difficulty"].lower().strip():
-          newdiff = "insane"
-          break
+      newdiff = next(
+          ("insane" for normdiff in mapping["insane"]
+           if normdiff in machinestats["difficulty"].lower().strip()),
+          None,
+      )
       if not newdiff:
         for normdiff in mapping["hard"]:
           if normdiff in machinestats["difficulty"].lower().strip():
@@ -423,12 +433,10 @@ class VulnHub:
     machineurls = self._get_all_machine_urls()
     machines = []
     for url in machineurls:
-      stats = self._parse_machine_page(url)
-      if stats:
+      if stats := self._parse_machine_page(url):
         machines.append(stats)
     return machines
 
   def get_machine_stats(self, url):
-    stats = self._parse_machine_page(url)
-    if stats:
+    if stats := self._parse_machine_page(url):
       return stats
